@@ -4,73 +4,72 @@ namespace undeadline;
 
 class JWT
 {
-    private static $config;
-    private static $headers;
-    private static $payload;
-    private static $signature;
+    private $config;
+    private $headers;
+    private $payload;
+    private $signature;
 
-    public static function getToken($data)
+    public function __construct()
     {
-        self::$config = self::loadConfig();
-        $headers = self::headers();
-        $payload = array_merge($data, ["exp" => time() + self::$config['lifetime']]);
+        $this->config = $this->loadConfig();
+    }
+
+    public function getToken(array $data)
+    {
+        $headers = $this->buildHeaders();
+        $payload = $this->buildPayload($data);
 
         $body = base64_encode(serialize($headers)) . '.' . base64_encode(serialize($payload));
-        $signature = hash_hmac(self::$config['algorithm'], $body, self::$config['secret']);
+        $signature = hash_hmac($this->config['algorithm'], $body, $this->config['secret']);
 
         return $body . '.' . $signature;
     }
 
-    public static function refreshToken()
+    public function refreshToken()
     {
         // TODO
     }
 
-    public static function validateToken($token)
+    public function validateToken($token)
     {
-        if (!self::tokenParse($token))
+        if (
+            !$this->tokenParse($token)
+            || !$this->tokenSignatureHaveCorrectLength($this->signature)
+            || !$this->tokenSignatureIsValid($this->headers, $this->payload, $this->signature)
+            || $this->tokenDateExpired($this->payload)
+        ) {
             return false;
-
-        self::$config = self::loadConfig();
-
-        if (!self::tokenSignatureIsCorrectLength(self::$signature))
-            return false;
-
-        if (!self::tokenSignatureIsValid(self::$headers, self::$payload, self::$signature))
-            return false;
-
-        if (self::tokenDateExpired(self::$payload))
-            return false;
+        }
 
         return true;
     }
 
-    private static function tokenParse($token)
+    private function tokenParse($token)
     {
         $parts = explode('.', $token);
 
         if (count($parts) !== 3)
             return false;
 
-        return list(self::$headers, self::$payload, self::$signature) = $parts;
+        return list($this->headers, $this->payload, $this->signature) = $parts;
     }
 
-    private static function tokenSignatureIsValid($headers, $payload, $signature)
+    private function tokenSignatureIsValid($headers, $payload, $signature)
     {
         $body = $headers . '.' . $payload;
 
-        return (hash_hmac(self::$config['algorithm'], $body, self::$config['secret'])) === $signature;
+        return (hash_hmac($this->config['algorithm'], $body, $this->config['secret'])) === $signature;
     }
 
-    private static function tokenSignatureIsCorrectLength($signature)
+    private function tokenSignatureHaveCorrectLength($signature)
     {
-        if (self::$config['signature_length'] !== strlen($signature))
+        if ($this->config['signature_length'] !== strlen($signature))
             return false;
 
         return true;
     }
 
-    private static function tokenDateExpired($encoded_payload)
+    private function tokenDateExpired($encoded_payload)
     {
         $decode_payload = unserialize(base64_decode($encoded_payload));
 
@@ -80,12 +79,17 @@ class JWT
         return false;
     }
 
-    private static function headers()
+    private function buildHeaders()
     {
-        return ["alg" => self::$config['algorithm'], "typ" => self::$config['type']];
+        return ["alg" => $this->config['algorithm'], "typ" => $this->config['type']];
     }
 
-    private static function loadConfig()
+    private function buildPayload($payload)
+    {
+        return array_merge($payload, ["exp" => time() + $this->config['lifetime']]);
+    }
+
+    private function loadConfig()
     {
         return require_once 'config.php';
     }
