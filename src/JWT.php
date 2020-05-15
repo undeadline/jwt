@@ -1,6 +1,6 @@
 <?php
 
-namespace undeadline;
+namespace Undeadline;
 
 class JWT
 {
@@ -45,7 +45,7 @@ class JWT
      * @param array $data
      * @return string
      */
-    public function getToken(array $data): string
+    public function getToken(array $data = []): string
     {
         $headers = $this->buildHeaders();
         $payload = $this->buildPayload($data);
@@ -62,9 +62,9 @@ class JWT
      * @param array $data
      * @return string
      */
-    public function refreshToken(array $data): string
+    public function refreshToken(array $data = []): string
     {
-        return hash_hmac($this->config['algorithm'], base64_encode(serialize($data ) . time()), $this->config['refresh_secret']);
+        return hash_hmac($this->config['algorithm'], base64_encode(serialize($data) . time()), $this->config['refresh_secret']);
     }
 
     /**
@@ -188,6 +188,6 @@ class JWT
      */
     private function loadConfig()
     {
-        return require_once 'config.php';
+        return require 'config.php';
     }
 }
