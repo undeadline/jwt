@@ -56,6 +56,11 @@ class JWT
         return $body . '.' . $signature;
     }
 
+    public function getPayload()
+    {
+        return $this->payload ? unserialize(base64_decode($this->payload)) : [];
+    }
+
     /**
      * Generate refresh token
      *
