@@ -2,22 +2,22 @@
 
 return [
     // Use sha512 algorithm if your OS is have 64bit architecture
-    "algorithm" => "sha256",
+    "algorithm" => "SHA512",
 
-    // Hash length is depends from algorithm
-    "signature_length" => 64,
+    // Alias for header algorithm
+    "alg" => "HS512",
 
     "type" => "JWT",
 
     // Your secret string for hashing sign
-    "secret" => 123,
+    "secret" => '14b2478cc1854f5075a9bd6e14526dc802258c438ac4f7a257819612f8669c9d',
 
     // Your refresh string for hashing sign
-    "refresh_secret" => 321,
+    "refresh_secret" => '6548311984d74d6b9a9161477069d46471aa9a01abb3d53c63e59be73050a04b',
 
     // Count of days for refresh token lifetime
-    "refresh_token_lifetime" => 60 * 60 * 24 * 60,
+    "refresh_token_lifetime" => 60 * 60 * 24 * 60, // 60 days
 
     // Count of seconds for token lifetime
-    "lifetime" => 360
+    "lifetime" => 1800 // 30 min
 ];

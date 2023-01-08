@@ -32,6 +32,87 @@ class JWT
     protected $signature;
 
     /**
+     * The "iss" (issuer) claim identifies the principal that issued the
+     * JWT.  The processing of this claim is generally application specific.
+     * The "iss" value is a case-sensitive string containing a StringOrURI
+     * value.  Use of this claim is OPTIONAL.
+     */
+    protected $issuer;
+
+    /**
+     * The "sub" (subject) claim identifies the principal that is the
+     * subject of the JWT.  The claims in a JWT are normally statements
+     * about the subject.  The subject value MUST either be scoped to be
+     * locally unique in the context of the issuer or be globally unique.
+     * The processing of this claim is generally application specific.  The
+     * "sub" value is a case-sensitive string containing a StringOrURI
+     * value.  Use of this claim is OPTIONAL.
+     */
+    protected $subject;
+
+    /**
+     * The "aud" (audience) claim identifies the recipients that the JWT is
+     * intended for.  Each principal intended to process the JWT MUST
+     * identify itself with a value in the audience claim.  If the principal
+     * processing the claim does not identify itself with a value in the
+     * "aud" claim when this claim is present, then the JWT MUST be
+     * rejected.  In the general case, the "aud" value is an array of case-
+     * sensitive strings, each containing a StringOrURI value.  In the
+     * special case when the JWT has one audience, the "aud" value MAY be a
+     * single case-sensitive string containing a StringOrURI value.  The
+     * interpretation of audience values is generally application specific.
+     * Use of this claim is OPTIONAL.
+     */
+    protected $audience;
+
+    /**
+     * The "exp" (expiration time) claim identifies the expiration time on
+     * or after which the JWT MUST NOT be accepted for processing.  The
+     * processing of the "exp" claim requires that the current date/time
+     * MUST be before the expiration date/time listed in the "exp" claim.
+     * Implementers MAY provide for some small leeway, usually no more than
+     * a few minutes, to account for clock skew.  Its value MUST be a number
+     * containing a NumericDate value.  Use of this claim is OPTIONAL.
+     */
+    protected $expiration;
+
+    /**
+     * The "nbf" (not before) claim identifies the time before which the JWT
+     * (MUST NOT be accepted for processing.  The processing of the "nbf"
+     * claim requires that the current date/time MUST be after or equal to
+     * the not-before date/time listed in the "nbf" claim.  Implementers MAY
+     * provide for some small leeway, usually no more than a few minutes, to
+     * account for clock skew.  Its value MUST be a number containing a
+     * NumericDate value.  Use of this claim is OPTIONAL.
+     */
+    protected $notBefore;
+
+    /**
+     * The "jti" (JWT ID) claim provides a unique identifier for the JWT.
+     * The identifier value MUST be assigned in a manner that ensures that
+     * there is a negligible probability that the same value will be
+     * accidentally assigned to a different data object; if the application
+     * uses multiple issuers, collisions MUST be prevented among values
+     * produced by different issuers as well.  The "jti" claim can be used
+     * to prevent the JWT from being replayed.  The "jti" value is a case-
+     * sensitive string.  Use of this claim is OPTIONAL.
+     */
+    protected $JWTID;
+
+    /**
+     * The "iat" (issued at) claim identifies the time at which the JWT was
+     * issued.  This claim can be used to determine the age of the JWT.  Its
+     * value MUST be a number containing a NumericDate value.  Use of this
+     * claim is OPTIONAL.
+     */
+    protected $issuedAt;
+
+    /**
+     * Claims for payload
+     */
+    protected $claims = [];
+
+    /**
      * JWT constructor.
      */
     public function __construct()
@@ -42,34 +123,56 @@ class JWT
     /**
      * Generate access token
      *
-     * @param array $data
      * @return string
      */
-    public function getToken(array $data = []): string
+    public function getAccessToken(): string
     {
-        $headers = $this->buildHeaders();
-        $payload = $this->buildPayload($data);
+        $headers = $this->encodeHeaders($this->buildHeaders());
+        $payload = $this->encodePayload($this->buildPayload());
+        $signature = $this->makeSignature($headers, $payload);
 
-        $body = base64_encode(serialize($headers)) . '.' . base64_encode(serialize($payload));
-        $signature = hash_hmac($this->config['algorithm'], $body, $this->config['secret']);
+        return $headers . '.' . $payload . '.' . $signature;
+    }
 
-        return $body . '.' . $signature;
+    protected function encode(array $data): string
+    {
+        return $this->base64UrlEncode(json_encode($data));
+    }
+
+    protected function encodeHeaders(array $headers): string
+    {
+        return $this->encode($headers);
+    }
+
+    protected function encodePayload(array $payload): string
+    {
+        return $this->encode($payload);
+    }
+
+    protected function makeSignature(string $headers, string $payload)
+    {
+        return $this->base64UrlEncode(hash_hmac($this->config['algorithm'], $headers . '.' . $payload, $this->config['secret'], true));
     }
 
     public function getPayload()
     {
-        return $this->payload ? unserialize(base64_decode($this->payload)) : [];
+        return $this->payload ? json_decode($this->base64UrlDecode($this->payload)) : [];
     }
 
     /**
      * Generate refresh token
      *
-     * @param array $data
      * @return string
      */
-    public function refreshToken(array $data = []): string
+    public function getRefreshToken(): string
     {
-        return hash_hmac($this->config['algorithm'], base64_encode(serialize($data) . time()), $this->config['refresh_secret']);
+        return hash_hmac(
+            $this->config['algorithm'], 
+            $this->base64UrlEncode(
+                bin2hex(random_bytes(32)) . time()
+            ), 
+            $this->config['refresh_secret']
+        );
     }
 
     /**
@@ -91,15 +194,112 @@ class JWT
     public function validateToken(string $token): bool
     {
         if (
-            !$this->parseToken($token)
-            || !$this->tokenSignatureHaveCorrectLength($this->signature)
-            || !$this->tokenSignatureIsValid($this->headers, $this->payload, $this->signature)
-            || $this->tokenDateExpired($this->payload)
+            !$this->parseToken($token) ||
+            !$this->tokenSignatureIsValid($this->headers, $this->payload, $this->signature) ||
+            $this->tokenDateExpired($this->payload)
         ) {
             return false;
         }
 
         return true;
+    }
+
+    /**
+     * Set claims in payload
+     *
+     * @param array $claims
+     * @return void
+     */
+    public function setClaims(array $claims): void
+    {
+        $this->claims = $claims;
+    }
+
+    /**
+     * Set issuer in payload
+     *
+     * @param string $issuer
+     * @return void
+     */
+    public function setIssuer(string $issuer): void
+    {
+        $this->issuer = $issuer;
+    }
+
+    /**
+     * Set subject in payload
+     *
+     * @param string $subject
+     * @return void
+     */
+    public function setSubject(string $subject): void
+    {
+        $this->subject = $subject;
+    }
+
+    /**
+     * Set audience in payload
+     *
+     * @param string $audience
+     * @return void
+     */
+    public function setAudience(string $audience): void
+    {
+        $this->audience = $audience;
+    }
+
+    /**
+     * Set expxration in payload
+     *
+     * @param string $expxration
+     * @return void
+     */
+    public function setExpirationTime(string $expiration): void
+    {
+        $this->expiration = $expiration;
+    }
+
+    /**
+     * Set not before in payload
+     *
+     * @param string $notBefore
+     * @return void
+     */
+    public function setNotBeforeTime(string $notBefore): void
+    {
+        $this->notBefore = $notBefore;
+    }
+
+    /**
+     * Set issued at in payload
+     *
+     * @param string $issuedAt
+     * @return void
+     */
+    public function setIssuedTime(string $issuedAt): void
+    {
+        $this->issuedAt = $issuedAt;
+    }
+
+    /**
+     * Set JWTID in payload
+     *
+     * @param string $JWTID
+     * @return void
+     */
+    public function setJWTID(string $JWTID): void
+    {
+        $this->JWTID = $JWTID;
+    }
+
+    protected function base64UrlEncode(string $data): string
+    {
+        return str_replace(['+','/','='], ['-','_',''], base64_encode($data));
+    }
+
+    protected function base64UrlDecode(string $base64Url): string
+    {
+        return base64_decode(str_replace(['-','_'], ['+','/'], $base64Url));
     }
 
     /**
@@ -130,23 +330,7 @@ class JWT
      */
     protected function tokenSignatureIsValid(string $headers, string $payload, string $signature): bool
     {
-        $body = $headers . '.' . $payload;
-
-        return (hash_hmac($this->config['algorithm'], $body, $this->config['secret'])) === $signature;
-    }
-
-    /**
-     * Validation what signature is have correct length
-     *
-     * @param string $signature
-     * @return bool
-     */
-    protected function tokenSignatureHaveCorrectLength(string $signature)
-    {
-        if ($this->config['signature_length'] !== strlen($signature))
-            return false;
-
-        return true;
+        return $this->base64UrlEncode(hash_hmac($this->config['algorithm'], $headers . '.' . $payload, $this->config['secret'], true)) === $signature;
     }
 
     /**
@@ -157,9 +341,9 @@ class JWT
      */
     protected function tokenDateExpired(string $encoded_payload): bool
     {
-        $decode_payload = unserialize(base64_decode($encoded_payload));
+        $decodePayload = json_decode($this->base64UrlDecode($encoded_payload), true);
 
-        if ((int) $decode_payload['exp'] < time())
+        if (isset($decodePayload['exp']) && is_numeric($decodePayload['exp']) && (int) $decodePayload['exp'] < time())
             return true;
 
         return false;
@@ -172,18 +356,31 @@ class JWT
      */
     protected function buildHeaders(): array
     {
-        return ["alg" => $this->config['algorithm'], "typ" => $this->config['type']];
+        return ["alg" => $this->config['alg'], "typ" => $this->config['type']];
     }
 
     /**
      * Return array of payload
      *
-     * @param array $payload
      * @return array
      */
-    protected function buildPayload(array $payload): array
+    protected function buildPayload(): array
     {
-        return array_merge($payload, ["exp" => time() + $this->config['lifetime']]);
+        $payload = [];
+
+        $this->issuer ? $payload["iss"] = $this->issuer : null;
+        $this->subject ? $payload["sub"] = $this->subject : null;
+        $this->audience ? $payload["aud"] = $this->audience : null;
+        $this->expiration ? $payload["exp"] = $this->expiration : null;
+        $this->notBefore ? $payload["nbf"] = $this->notBefore : null;
+        $this->issuedAt ? $payload["iat"] = $this->issuedAt : null;
+        $this->JWTID ? $payload["jti"] = $this->JWTID : null;
+        
+        foreach($this->claims as $claim => $value) {
+            $payload[$claim] = $value;
+        }
+
+        return $payload;
     }
 
     /**
@@ -193,6 +390,6 @@ class JWT
      */
     private function loadConfig()
     {
-        return require 'config.php';
+        return include 'config.php';
     }
 }
