@@ -151,7 +151,7 @@ class JWT
 
     protected function makeSignature(string $headers, string $payload)
     {
-        return $this->base64UrlEncode(hash_hmac($this->config['algorithm'], $headers . '.' . $payload, $this->config['secret'], true));
+        return $this->base64UrlEncode(hash_hmac($this->config['algorithm'], $headers . '.' . $payload, $this->config['access_secret'], true));
     }
 
     public function getPayload()
@@ -173,16 +173,6 @@ class JWT
             ), 
             $this->config['refresh_secret']
         );
-    }
-
-    /**
-     * Return lifetime of refresh token as timestamp
-     *
-     * @return int
-     */
-    public function getRefreshTokenLifetime(): int
-    {
-        return time() + $this->config['refresh_token_lifetime'];
     }
 
     /**
@@ -251,10 +241,10 @@ class JWT
     /**
      * Set expxration in payload
      *
-     * @param string $expxration
+     * @param int $expxration
      * @return void
      */
-    public function setExpirationTime(string $expiration): void
+    public function setExpirationTime(int $expiration): void
     {
         $this->expiration = $expiration;
     }
@@ -262,10 +252,10 @@ class JWT
     /**
      * Set not before in payload
      *
-     * @param string $notBefore
+     * @param int $notBefore
      * @return void
      */
-    public function setNotBeforeTime(string $notBefore): void
+    public function setNotBeforeTime(int $notBefore): void
     {
         $this->notBefore = $notBefore;
     }
@@ -273,10 +263,10 @@ class JWT
     /**
      * Set issued at in payload
      *
-     * @param string $issuedAt
+     * @param int $issuedAt
      * @return void
      */
-    public function setIssuedTime(string $issuedAt): void
+    public function setIssuedTime(int $issuedAt): void
     {
         $this->issuedAt = $issuedAt;
     }
@@ -330,7 +320,7 @@ class JWT
      */
     protected function tokenSignatureIsValid(string $headers, string $payload, string $signature): bool
     {
-        return $this->base64UrlEncode(hash_hmac($this->config['algorithm'], $headers . '.' . $payload, $this->config['secret'], true)) === $signature;
+        return $this->base64UrlEncode(hash_hmac($this->config['algorithm'], $headers . '.' . $payload, $this->config['access_secret'], true)) === $signature;
     }
 
     /**

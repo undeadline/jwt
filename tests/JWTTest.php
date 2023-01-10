@@ -17,9 +17,9 @@ class JWTTest extends TestCase
     public function jwt_token_have_correct_structure()
     {
         $jwt = new \Undeadline\JWT();
-        $token = $jwt->getToken();
+        $token = $jwt->getAccessToken();
 
-        $this->assertRegExp('/^[\s\S]+\.[\s\S]+\.[\s\S]+$/', $token, 'Token is should have 3 parts');
+        $this->assertMatchesRegularExpression('/^[\s\S]+\.[\s\S]+\.[\s\S]+$/', $token, 'Token is should have 3 parts');
     }
 
     /**
@@ -28,8 +28,10 @@ class JWTTest extends TestCase
     public function jwt_tokens_are_equals_with_same_arguments()
     {
         $jwt = new \Undeadline\JWT();
-        $one = $jwt->getToken(['id' => 1]);
-        $two = $jwt->getToken(['id' => 1]);
+        $jwt->setClaims(['client_id' => 1]);
+        $one = $jwt->getAccessToken();
+        $jwt->setClaims(['client_id' => 1]);
+        $two = $jwt->getAccessToken();
 
         $this->assertEquals($one, $two, 'Tokens with same arguments are not equals');
     }
@@ -40,8 +42,10 @@ class JWTTest extends TestCase
     public function jwt_tokens_are_not_equals_with_not_same_arguments()
     {
         $jwt = new \Undeadline\JWT();
-        $one = $jwt->getToken(['id' => 1]);
-        $two = $jwt->getToken(['id' => 2]);
+        $jwt->setClaims(['client_id' => 1]);
+        $one = $jwt->getAccessToken();
+        $jwt->setClaims(['client_id' => 2]);
+        $two = $jwt->getAccessToken();
 
         $this->assertNotEquals($one, $two, 'Tokens with not same arguments are equals');
     }
@@ -52,19 +56,32 @@ class JWTTest extends TestCase
     public function jwt_refresh_token_can_be_getting()
     {
         $jwt = new \Undeadline\JWT();
-        $refresh = $jwt->refreshToken();
+        $refresh = $jwt->getRefreshToken();
 
-        $this->assertRegExp('/^[\s\S]+$/', $refresh, 'Tokens with not same arguments are equals');
+        $this->assertMatchesRegularExpression('/^[\s\S]+$/', $refresh, 'Refresh token can not be empty');
     }
 
     /**
      * @test
      */
-    public function new_jwt_token_is_valid()
+    public function new_jwt_token_with_future_time_is_valid()
     {
         $jwt = new \Undeadline\JWT();
-        $token = $jwt->getToken();
+        $jwt->setExpirationTime(time() + 1800);
+        $token = $jwt->getAccessToken();
 
         $this->assertTrue($jwt->validateToken($token));
+    }
+
+    /**
+     * @test
+     */
+    public function new_jwt_token_with_past_time_is_not_valid()
+    {
+        $jwt = new \Undeadline\JWT();
+        $jwt->setExpirationTime(time() - 1000);
+        $token = $jwt->getAccessToken();
+
+        $this->assertFalse($jwt->validateToken($token));
     }
 }
